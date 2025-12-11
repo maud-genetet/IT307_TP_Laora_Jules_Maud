@@ -85,7 +85,75 @@ et enfin deploiment kubernetes, on lui dit de l'utliser
 kubectl apply -f ./post_pusher/deployment.yaml
 ```
 
-Pour verifier:
+si jamais erreur du a une presence deja:
+```bash
+kubectl delete deployment post-pusher-kafka
+```
+
+Pour verifier que on l'as bien deployer:
 ```bash
 kubectl get pods
 ```
+pour verifier que il envoie bien els messages :
+```bash
+kubectl logs -f <nom de pod>
+```
+
+
+
+## Ajoute les consumers
+
+
+### commencont par 1 consumer
+
+```bash
+cd post_consumer
+docker build -t post-consumer:v1 .
+cd ..
+```
+
+charge image dans kind
+```bash
+kind load docker-image post-consumer:v1 --name my-cluster
+```
+
+lance le deployment
+```bash
+kubectl apply -f post_consumer/deployment.yaml
+```
+
+verifie que tu recoit bien les messages:
+```bash
+kubectl logs -f -l app=post-consumer-kafka
+```
+
+### Passer a 3 consumers ?
+
+```bash
+kubectl scale deployment post-consumer-kafka --replicas=3
+```
+
+verifie que tu as bien 2 nouveaux pods avec :
+
+```bash
+kubectl get pods
+```
+
+on vois bien avec les noms des 3 consumers avec les messages recus : 
+```bash
+kubectl logs -f -l app=post-consumer-kafka --prefix
+```
+
+
+
+
+## Repartir à 0 ?
+
+on supprime le cluster ENTIER:
+```bash
+kind delete clusters --all
+```
+
+
+
+<!-- TODO faire un start.sh pour commencer rapidement avant la soutenance -->

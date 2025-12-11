@@ -1,20 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: post-pusher-kafka
+  name: post-consumer-kafka
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: post-pusher-kafka
+      app: post-consumer-kafka
   template:
     metadata:
       labels:
-        app: post-pusher-kafka
+        app: post-consumer-kafka
     spec:
       containers:
-      - name: post-pusher-kafka
-        image: post-pusher:v1
+      - name: post-consumer-kafka
+        image: post-consumer:v1
         imagePullPolicy: Never
         envFrom:
         - configMapRef:
