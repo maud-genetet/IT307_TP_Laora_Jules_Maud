@@ -7,36 +7,10 @@ kubeadmConfigPatches:
   kind: KubeletConfiguration
   evictionHard:
     nodefs.available: "0%"
-# patch it further using a JSON 6902 patch
-kubeadmConfigPatchesJSON6902:
-- group: kubeadm.k8s.io
-  version: v1beta3
-  kind: ClusterConfiguration
-  patch: |
-    - op: add
-      path: /apiServer/certSANs/-
-      value: my-hostname
-# 1 control plane node and 3 workers
+# 1 control plane node and 2 workers
 nodes:
-# the control plane node config
+# the control plane node 
 - role: control-plane
-  extraPortMappings:
-  - containerPort: 30011
-    hostPort: 30011
-  - containerPort: 30012
-    hostPort: 30012
-  - containerPort: 30013
-    hostPort: 30013
-  - containerPort: 30014
-    hostPort: 30014
-  - containerPort: 30015
-    hostPort: 30015
-  - containerPort: 30016
-    hostPort: 30016
-  extraMounts:
-  - hostPath: ./airflow/dags
-    containerPath: /airflow/dags
-# the three workers
-- role: worker
+# the two workers
 - role: worker
 - role: worker

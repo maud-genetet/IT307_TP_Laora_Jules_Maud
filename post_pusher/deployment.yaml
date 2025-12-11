@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: post-pusher-kafka
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: post-pusher-kafka
+  template:
+    metadata:
+      labels:
+        app: post-pusher-kafka
+    spec:
+      containers:
+      - name: post-pusher-kafka
+        image: post-pusher:v1
+        imagePullPolicy: Never
+        command: ["python", "main.py"]
+        envFrom:
+        - configMapRef:
+            name: kafka-ui-config

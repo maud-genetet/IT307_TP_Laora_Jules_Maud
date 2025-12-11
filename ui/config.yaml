@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-ui-config
+data:
+  KAFKA_BROKER_URL: "kafka-broker-service:9092"
+  KAFKA_TOPIC: "my-topic"
