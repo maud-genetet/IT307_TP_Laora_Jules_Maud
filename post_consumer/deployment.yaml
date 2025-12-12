@@ -19,3 +19,16 @@ spec:
         envFrom:
         - configMapRef:
             name: kafka-ui-config
+
+        env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /var/secrets/google/key.json
+        volumeMounts:
+        - name: google-cloud-key
+          mountPath: /var/secrets/google
+          readOnly: true
+          
+      volumes:
+      - name: google-cloud-key
+        secret:
+          secretName: gcp-key-secret

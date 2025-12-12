@@ -40,7 +40,7 @@ kubectl apply -f ./kafka/service.yaml
 
 Pour verifier si ca c'est bien fait:
 ```bash
-kubectl get nodes
+kubectl get pods
 ```
 Je dois avoir mon brocker du type kafka-broker-6758b4c884-rs7fc
 
@@ -70,7 +70,7 @@ KAFKA_BROKER = os.getenv("KAFKA_BROKER_URL")  # Address of the Kafka broker
 
 deploiment du container post-pusher:v1
 ```bash
-cd post-pusher
+cd post_pusher
 docker build -t post-pusher:v1 .
 cd ..
 ```
@@ -143,6 +143,85 @@ on vois bien avec les noms des 3 consumers avec les messages recus :
 ```bash
 kubectl logs -f -l app=post-consumer-kafka --prefix
 ```
+
+
+## Envoie dans bigQUery
+
+On ajoute service-account aux secrets de kafka avec une clef `gcp-key-secret` pour pouvoir utiliser bigQuery
+```bash
+kubectl create secret generic gcp-key-secret --from-file=key.json=./service-account.json
+```
+
+On crée notre table depuis gcp/BigQuery/
+on fait une requete pour crer la table,
+```SQL
+-- 1. On crée le "dossier" (Dataset) si il ne l'est pas encore
+CREATE SCHEMA IF NOT EXISTS `coursbigquery-477209.tp_kafka`;
+
+-- 2. On crée la table avec exactement les mêmes colonnes que le code Python
+CREATE TABLE `coursbigquery-477209.tp_kafka.posts` (
+  id STRING NOT NULL,
+  post_type_id STRING NOT NULL,
+  accepted_answer_id STRING,
+  creation_date TIMESTAMP NOT NULL,
+  score INTEGER NOT NULL,
+  view_count INTEGER,
+  body STRING NOT NULL,
+  owner_user_id STRING,
+  last_editor_user_id STRING,
+  last_edit_date TIMESTAMP,
+  last_activity_date TIMESTAMP,
+  title STRING,
+  tags STRING,
+  answer_count INTEGER,
+  comment_count INTEGER NOT NULL,
+  content_license STRING NOT NULL,
+  parent_id STRING
+);
+```
+et on voit tp_kafka en bas a gauche bien crée
+
+
+on ajoute `coursbigquery-477209.tp_kafka` a ui/config.yaml
+
+puis on réapplique la config
+
+
+
+## Kafka ui
+
+on deploie:
+```bash
+kubectl apply -f ./ui/deployment.yaml
+kubectl apply -f ./ui/service.yaml
+```
+
+on ouvre les ports pour y acceder
+```bash
+kubectl port-forward svc/kafka-ui-service 8080:8080 --address 0.0.0.0
+```
+
+on oublie aps de forward de gcp jusqua mon pc danbns PORTS...
+
+puis c'est nickel sur localhost :)
+
+
+
+## Airflow by Helm
+
+install helm:
+```bash
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+```
+puis airflow:
+```bash
+helm repo add apache-airflow https://airflow.apache.org
+helm upgrade --install airflow apache-airflow/airflow --namespace airflow --create-namespace
+```
+
+
+
+
 
 
 

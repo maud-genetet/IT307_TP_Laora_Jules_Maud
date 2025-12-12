@@ -2,7 +2,6 @@ import logging
 import random
 import os
 import json
-from google.cloud import bigquery
 import re
 import time
 import argparse
@@ -16,27 +15,16 @@ log = logging.getLogger(__name__)
 TOPIC = os.getenv("KAFKA_TOPIC")  # Name of the Kafka topic
 KAFKA_BROKER = os.getenv("KAFKA_BROKER_URL")  # Address of the Kafka broker
 
+BATCH_SIZE = 2 # 50  # Number of posts to process in each batch
 
-
-SCHEMA = [  # Define the schema for the table
-    bigquery.SchemaField('id', 'STRING', mode='REQUIRED'),
-    bigquery.SchemaField('post_type_id', 'STRING', mode='REQUIRED'),
-    bigquery.SchemaField('accepted_answer_id', 'STRING', mode='NULLABLE'),
-    bigquery.SchemaField('creation_date', 'TIMESTAMP', mode='REQUIRED'),
-    bigquery.SchemaField('score', 'INTEGER', mode='REQUIRED'),
-    bigquery.SchemaField('view_count', 'INTEGER', mode='NULLABLE'),
-    bigquery.SchemaField('body', 'STRING', mode='REQUIRED'),
-    bigquery.SchemaField('owner_user_id', 'STRING', mode='NULLABLE'),
-    bigquery.SchemaField('last_editor_user_id', 'STRING', mode='NULLABLE'),
-    bigquery.SchemaField('last_edit_date', 'TIMESTAMP', mode='NULLABLE'),
-    bigquery.SchemaField('last_activity_date', 'TIMESTAMP', mode='NULLABLE'),
-    bigquery.SchemaField('title', 'STRING', mode='NULLABLE'),
-    bigquery.SchemaField('tags', 'STRING', mode='NULLABLE'),
-    bigquery.SchemaField('answer_count', 'INTEGER', mode='NULLABLE'),
-    bigquery.SchemaField('comment_count', 'INTEGER', mode='REQUIRED'),
-    bigquery.SchemaField('content_license', 'STRING', mode='REQUIRED'),
-    bigquery.SchemaField('parent_id', 'STRING', mode='NULLABLE')
-]
+# Liste simple des champs autorisés 
+ALLOWED_FIELDS = {
+    'id', 'post_type_id', 'accepted_answer_id', 'creation_date',
+    'score', 'view_count', 'body', 'owner_user_id',
+    'last_editor_user_id', 'last_edit_date', 'last_activity_date',
+    'title', 'tags', 'answer_count', 'comment_count',
+    'content_license', 'parent_id'
+}
 
 def transform_key(key):
     # Remove '@' and convert to snake_case
@@ -82,10 +70,10 @@ def main(kafka_host):
         content = f.read()
     posts = json.loads(content)
 
-    while True:
+    for i in range(BATCH_SIZE):
         post = random.choice(posts)
 
-        allowed_columns = {field.name for field in SCHEMA}
+        allowed_columns = ALLOWED_FIELDS
         # Transform the post for insertion and save to a temporary JSON file
         transformed_post = transform_and_filter_post(post, allowed_columns)
         

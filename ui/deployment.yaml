@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka-ui
+  template:
+    metadata:
+      labels:
+        app: kafka-ui
+    spec:
+      containers:
+      - name: kafka-ui
+        image: provectuslabs/kafka-ui:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DYNAMIC_CONFIG_ENABLED
+          value: 'true'
+        - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+          value: 'kafka-broker-service:9092'
+        # volumeMounts:
+        # - name: config-volume
+        #   mountPath: /etc/kafkaui/dynamic_config.yaml
+        #   subPath: dynamic_config.yaml
+      # volumes:
+      # - name: config-volume
+      #   configMap:
+      #     name: kafka-ui-config
