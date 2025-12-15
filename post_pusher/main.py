@@ -15,8 +15,6 @@ log = logging.getLogger(__name__)
 TOPIC = os.getenv("KAFKA_TOPIC")  # Name of the Kafka topic
 KAFKA_BROKER = os.getenv("KAFKA_BROKER_URL")  # Address of the Kafka broker
 
-BATCH_SIZE = 2 # 50  # Number of posts to process in each batch
-
 # Liste simple des champs autorisés 
 ALLOWED_FIELDS = {
     'id', 'post_type_id', 'accepted_answer_id', 'creation_date',
@@ -70,7 +68,7 @@ def main(kafka_host):
         content = f.read()
     posts = json.loads(content)
 
-    for i in range(BATCH_SIZE):
+    while True:
         post = random.choice(posts)
 
         allowed_columns = ALLOWED_FIELDS

@@ -1,110 +1,161 @@
-# TP Noté Projet : Laora Aimi, Jules Maulard et Maud Genetet
+# TP Noté Projet
 
-## Création du cluster
+**Participants** : Laora Aimi, Jules Maulard, Maud Genetet
 
-Dans `kind/`
-Création du cluster avec Kind
+Ce document décrit pas à pas la mise en place complète du projet : création du cluster Kubernetes avec Kind, déploiement de Kafka, des producteurs et consommateurs, intégration BigQuery, Kafka UI et DBT.
+
+---
+
+## 1. Création du cluster Kubernetes (Kind)
+
+Depuis le dossier `kind/` :
+
 ```bash
 kind create cluster --config ./kind/config.yaml --name my-cluster
 ```
 
-Si clusters deja existants sur les ports
+### Suppression de clusters existants (si ports déjà utilisés)
+
+Lister les clusters :
+
 ```bash
 kind get clusters
+```
+
+Supprimer un cluster précis :
+
+```bash
 kind delete cluster --name <cluster-name>
 ```
-ou 
+
+Ou supprimer tous les clusters :
+
 ```bash
 kind delete clusters --all
 ```
 
-Enfin pour check que nos nodes sont bien crées
+### Vérification du cluster
+
 ```bash
 kubectl get nodes
 ```
-et on doit avoir bien nos 3 workers et notre master
 
+On doit voir **1 master** et **3 workers**.
 
+---
 
+## 2. Mise en place de Kafka
 
-## Mise en place de Kafka
+### Déploiement du broker Kafka
 
-Pour deployer le brocker kafka ont fait 
 ```bash
 kubectl apply -f ./kafka/deployment.yaml
 ```
-Puis pour ajouter le service:
+
+### Déploiement du service Kafka
+
 ```bash
 kubectl apply -f ./kafka/service.yaml
 ```
 
-Pour verifier si ca c'est bien fait:
+### Vérification
+
 ```bash
 kubectl get pods
 ```
-Je dois avoir mon brocker du type kafka-broker-6758b4c884-rs7fc
 
+Un pod du type suivant doit être présent :
 
-## Application de config map
+```
+kafka-broker-xxxxxxxxxx-xxxxx
+```
 
-deploiment
+---
+
+## 3. Configuration via ConfigMap
+
+### Déploiement de la ConfigMap
+
 ```bash
 kubectl apply -f ./ui/config.yaml
 ```
 
-verification:
+### Vérification
+
 ```bash
 kubectl get configmaps
 ```
-on doit avoir kafka-ui-config,
-l'autre est normal cré automatiquement (sécurise communication entre pods et kubernetes)
 
+On doit voir :
 
-## Deployment du post_pusher
+* `kafka-ui-config`
+* une ConfigMap système créée automatiquement par Kubernetes
 
-Apres avoir modif le fichier post_pusher/main.py pour utiliser notre ui/config.yaml:
-```python
-TOPIC = os.getenv("KAFKA_TOPIC")  # Name of the Kafka topic
-KAFKA_BROKER = os.getenv("KAFKA_BROKER_URL")  # Address of the Kafka broker
+### Ajout du secret GCP (BigQuery)
+
+Ajout de la clé du service account utilisée par les consumers pour écrire dans BigQuery :
+
+```bash
+kubectl create secret generic gcp-key-secret \
+  --from-file=key.json=./service-account.json
 ```
 
-deploiment du container post-pusher:v1
+---
+
+## 4. Déploiement du producer `post_pusher`
+
+### Modification du code Python
+
+Dans `post_pusher/main.py`, utilisation des variables d’environnement issues de la ConfigMap :
+
+```python
+TOPIC = os.getenv("KAFKA_TOPIC")
+KAFKA_BROKER = os.getenv("KAFKA_BROKER_URL")
+```
+
+### Build de l’image Docker
+
 ```bash
 cd post_pusher
 docker build -t post-pusher:v1 .
 cd ..
 ```
 
-On deploie maintenant l'image post-pusher dans le cluster:
+### Chargement de l’image dans Kind
+
 ```bash
 kind load docker-image post-pusher:v1 --name my-cluster
 ```
 
-et enfin deploiment kubernetes, on lui dit de l'utliser
+### Déploiement Kubernetes
+
 ```bash
 kubectl apply -f ./post_pusher/deployment.yaml
 ```
 
-si jamais erreur du a une presence deja:
+### En cas d’erreur (déploiement existant)
+
 ```bash
 kubectl delete deployment post-pusher-kafka
 ```
 
-Pour verifier que on l'as bien deployer:
+### Vérification
+
 ```bash
 kubectl get pods
 ```
-pour verifier que il envoie bien els messages :
+
+Suivi des logs :
+
 ```bash
-kubectl logs -f <nom de pod>
+kubectl logs -f <nom-du-pod>
 ```
 
+---
 
+## 5. Déploiement des consumers Kafka
 
-## Ajoute les consumers
-
-
-### commencont par 1 consumer
+### Build de l’image consumer
 
 ```bash
 cd post_consumer
@@ -112,53 +163,53 @@ docker build -t post-consumer:v1 .
 cd ..
 ```
 
-charge image dans kind
+### Chargement de l’image dans Kind
+
 ```bash
 kind load docker-image post-consumer:v1 --name my-cluster
 ```
 
-lance le deployment
+### Déploiement Kubernetes
+
 ```bash
 kubectl apply -f post_consumer/deployment.yaml
 ```
 
-verifie que tu recoit bien les messages:
+### Vérification de la réception des messages
+
 ```bash
 kubectl logs -f -l app=post-consumer-kafka
 ```
 
-### Passer a 3 consumers ?
+### Passage à 3 consumers
 
 ```bash
 kubectl scale deployment post-consumer-kafka --replicas=3
 ```
 
-verifie que tu as bien 2 nouveaux pods avec :
+Vérification :
 
 ```bash
 kubectl get pods
 ```
 
-on vois bien avec les noms des 3 consumers avec les messages recus : 
+Logs de tous les consumers :
+
 ```bash
 kubectl logs -f -l app=post-consumer-kafka --prefix
 ```
 
+---
 
-## Envoie dans bigQUery
+## 6. Envoi des données dans BigQuery
 
-On ajoute service-account aux secrets de kafka avec une clef `gcp-key-secret` pour pouvoir utiliser bigQuery
-```bash
-kubectl create secret generic gcp-key-secret --from-file=key.json=./service-account.json
-```
+### Création du dataset et de la table
 
-On crée notre table depuis gcp/BigQuery/
-on fait une requete pour crer la table,
-```SQL
--- 1. On crée le "dossier" (Dataset) si il ne l'est pas encore
+Depuis `gcp/BigQuery/`, exécuter la requête suivante :
+
+```sql
 CREATE SCHEMA IF NOT EXISTS `coursbigquery-477209.tp_kafka`;
 
--- 2. On crée la table avec exactement les mêmes colonnes que le code Python
 CREATE TABLE `coursbigquery-477209.tp_kafka.posts` (
   id STRING NOT NULL,
   post_type_id STRING NOT NULL,
@@ -179,60 +230,86 @@ CREATE TABLE `coursbigquery-477209.tp_kafka.posts` (
   parent_id STRING
 );
 ```
-et on voit tp_kafka en bas a gauche bien crée
 
+Le dataset `tp_kafka` doit apparaître dans BigQuery.
 
-on ajoute `coursbigquery-477209.tp_kafka` a ui/config.yaml
+### Mise à jour de la ConfigMap
 
-puis on réapplique la config
+Ajouter :
 
+```
+coursbigquery-477209.tp_kafka
+```
 
+Dans `ui/config.yaml`, puis réappliquer :
 
-## Kafka ui
+```bash
+kubectl apply -f ./ui/config.yaml
+```
 
-on deploie:
+---
+
+## 7. Kafka UI
+
+### Déploiement
+
 ```bash
 kubectl apply -f ./ui/deployment.yaml
 kubectl apply -f ./ui/service.yaml
 ```
 
-on ouvre les ports pour y acceder
+### Accès à l’interface
+
 ```bash
 kubectl port-forward svc/kafka-ui-service 8080:8080 --address 0.0.0.0
 ```
 
-on oublie aps de forward de gcp jusqua mon pc danbns PORTS...
+Penser à faire le **port-forward GCP vers la machine locale** si nécessaire.
 
-puis c'est nickel sur localhost :)
+Accès via navigateur :
 
-
-
-## Airflow by Helm
-
-install helm:
-```bash
-curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 ```
-puis airflow:
-```bash
-helm repo add apache-airflow https://airflow.apache.org
-helm upgrade --install airflow apache-airflow/airflow --namespace airflow --create-namespace
+http://localhost:8080
 ```
 
+---
 
+## 8. DBT (BigQuery)
 
+### Installation
 
+```bash
+pip install dbt-bigquery
+```
 
+### Initialisation du projet
 
+```bash
+dbt init mon_projet_data
+```
 
+### Création du modèle SQL
 
-## Repartir à 0 ?
+Créer un fichier `.sql` dans :
 
-on supprime le cluster ENTIER:
+```
+mon_projet_dbt/models/
+```
+
+### Exécution
+
+```bash
+dbt run
+```
+
+La table générée apparaît alors dans BigQuery.
+
+---
+
+## 9. Nettoyage complet
+
+### Suppression totale du cluster
+
 ```bash
 kind delete clusters --all
 ```
-
-
-
-<!-- TODO faire un start.sh pour commencer rapidement avant la soutenance -->
